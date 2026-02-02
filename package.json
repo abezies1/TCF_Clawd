@@ -1,0 +1,8 @@
+{
+  "name": "tcf-clawd",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "test": "echo \"No tests yet\" && exit 0"
+  }
+}\n
