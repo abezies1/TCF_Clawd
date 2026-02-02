@@ -1,0 +1,22 @@
+name: Label & Comment
+on:
+  issues:
+    types: [opened, labeled]
+jobs:
+  labeler:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Add assistant label if assignee is cococlawd
+        uses: actions-ecosystem/action-add-labels@v1
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          labels: 'assistant:coco'
+        if: contains(github.event.issue.assignees.*.login, 'cococlawd')
+      - name: Comment acknowledging issue
+        uses: actions/github-script@v6
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const issue = context.payload.issue;
+            const who = issue.assignees && issue.assignees.length ? issue.assignees.map(a=>a.login).join(', ') : 'unassigned';
+            await github.issues.createComment({owner: context.repo.owner, repo: context.repo.repo, issue_number: issue.number, body: `Thanks — I see this issue is assigned to: ${who}. I will pick it up or update progress here.`});
