@@ -1,44 +1,19 @@
-"use client";
+import { getProducts, getCollections, isShopifyConfigured } from "@/lib/shopify";
+import { products as fallbackProducts } from "@/lib/products";
+import MenuContent from "@/components/MenuContent";
+import FallbackMenu from "@/components/FallbackMenu";
 
-import { useState } from "react";
-import { products, categories } from "@/lib/products";
-import ProductCard from "@/components/ProductCard";
+export const dynamic = "force-dynamic";
 
-export default function MenuPage() {
-  const [activeCategory, setActiveCategory] = useState("all");
+export default async function MenuPage() {
+  if (!isShopifyConfigured()) {
+    return <FallbackMenu products={fallbackProducts} />;
+  }
 
-  const filtered =
-    activeCategory === "all"
-      ? products
-      : products.filter((p) => p.category === activeCategory);
+  const [products, collections] = await Promise.all([
+    getProducts(),
+    getCollections(),
+  ]);
 
-  return (
-    <>
-      <div className="hero">
-        <h1>Tucson Chocolate Factory</h1>
-        <p>
-          Handcrafted chocolates made in the heart of Tucson. Order online,
-          pick up at the shop.
-        </p>
-      </div>
-
-      <div className="category-filter">
-        {categories.map((cat) => (
-          <button
-            key={cat.id}
-            className={`category-btn ${activeCategory === cat.id ? "active" : ""}`}
-            onClick={() => setActiveCategory(cat.id)}
-          >
-            {cat.label}
-          </button>
-        ))}
-      </div>
-
-      <div className="product-grid">
-        {filtered.map((product) => (
-          <ProductCard key={product.id} product={product} />
-        ))}
-      </div>
-    </>
-  );
+  return <MenuContent products={products} collections={collections} />;
 }

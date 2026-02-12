@@ -1,42 +1,56 @@
 "use client";
 
-import { Product } from "@/lib/products";
+import Image from "next/image";
+import { ShopifyProduct, formatShopifyPrice } from "@/lib/shopify";
 import { useCart } from "@/context/CartContext";
-import { formatPrice } from "@/lib/orders";
 
-const categoryEmoji: Record<string, string> = {
-  truffles: "\u{1F36B}",
-  bars: "\u{1F36B}",
-  barks: "\u{1F36B}",
-  drinks: "\u2615",
-  gifts: "\u{1F381}",
-};
-
-export default function ProductCard({ product }: { product: Product }) {
+export default function ProductCard({ product }: { product: ShopifyProduct }) {
   const { addItem } = useCart();
+
+  const firstVariant = product.variants.edges[0]?.node;
+  const firstImage = product.images.edges[0]?.node;
+  const price = product.priceRange.minVariantPrice;
+
+  if (!firstVariant) return null;
 
   return (
     <div className="product-card">
       <div className="product-image">
-        {categoryEmoji[product.category] || "\u{1F36B}"}
+        {firstImage ? (
+          <Image
+            src={firstImage.url}
+            alt={firstImage.altText || product.title}
+            width={400}
+            height={300}
+            style={{ objectFit: "cover", width: "100%", height: "100%" }}
+          />
+        ) : (
+          "\u{1F36B}"
+        )}
       </div>
       <div className="product-info">
-        <div className="product-category">{product.category}</div>
-        <div className="product-name">{product.name}</div>
+        {product.productType && (
+          <div className="product-category">{product.productType}</div>
+        )}
+        <div className="product-name">{product.title}</div>
         <div className="product-desc">{product.description}</div>
         <div className="product-footer">
-          <span className="product-price">{formatPrice(product.price)}</span>
+          <span className="product-price">{formatShopifyPrice(price)}</span>
           <button
             className="btn btn-primary"
+            disabled={!firstVariant.availableForSale}
             onClick={() =>
               addItem({
+                variantId: firstVariant.id,
                 productId: product.id,
-                name: product.name,
-                price: product.price,
+                name: product.title,
+                variantTitle: firstVariant.title,
+                price: parseFloat(firstVariant.price.amount),
+                image: firstImage?.url,
               })
             }
           >
-            Add to Cart
+            {firstVariant.availableForSale ? "Add to Cart" : "Sold Out"}
           </button>
         </div>
       </div>
