@@ -1,6 +1,10 @@
 # Node
 node_modules/
 
+# Next.js
+.next/
+out/
+
 # Logs
 npm-debug.log*
 yarn-debug.log*
@@ -10,3 +14,4 @@ yarn-debug.log*
 
 # Env
 .env
+.env.local
