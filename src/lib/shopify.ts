@@ -193,8 +193,20 @@ export async function getProductsByCollection(
 }
 
 export async function createCheckout(
-  lineItems: { variantId: string; quantity: number }[]
+  lineItems: { variantId: string; quantity: number }[],
+  customAttributes?: { key: string; value: string }[]
 ): Promise<{ checkoutId: string; webUrl: string }> {
+  const input: Record<string, unknown> = {
+    lineItems: lineItems.map((item) => ({
+      variantId: item.variantId,
+      quantity: item.quantity,
+    })),
+  };
+
+  if (customAttributes && customAttributes.length > 0) {
+    input.customAttributes = customAttributes;
+  }
+
   const data = await shopifyFetch<{
     checkoutCreate: {
       checkout: { id: string; webUrl: string };
@@ -214,14 +226,7 @@ export async function createCheckout(
       }
     }
   `,
-    {
-      input: {
-        lineItems: lineItems.map((item) => ({
-          variantId: item.variantId,
-          quantity: item.quantity,
-        })),
-      },
-    }
+    { input }
   );
 
   if (data.checkoutCreate.checkoutUserErrors.length > 0) {

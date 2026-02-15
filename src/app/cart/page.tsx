@@ -1,34 +1,11 @@
 "use client";
 
-import { useState } from "react";
 import Link from "next/link";
 import { useCart } from "@/context/CartContext";
 import { formatPrice } from "@/lib/orders";
-import { createCheckout } from "@/lib/shopify";
 
 export default function CartPage() {
-  const { items, removeItem, updateQuantity, subtotal, clearCart } = useCart();
-  const [checkingOut, setCheckingOut] = useState(false);
-  const [error, setError] = useState("");
-
-  async function handleCheckout() {
-    setCheckingOut(true);
-    setError("");
-
-    try {
-      const lineItems = items.map((item) => ({
-        variantId: item.variantId,
-        quantity: item.quantity,
-      }));
-
-      const { webUrl } = await createCheckout(lineItems);
-      clearCart();
-      window.location.href = webUrl;
-    } catch {
-      setError("Could not start checkout. Please try again.");
-      setCheckingOut(false);
-    }
-  }
+  const { items, removeItem, updateQuantity, subtotal } = useCart();
 
   if (items.length === 0) {
     return (
@@ -102,21 +79,13 @@ export default function CartPage() {
         </div>
       </div>
 
-      {error && (
-        <p style={{ color: "var(--color-red)", marginTop: 12 }}>{error}</p>
-      )}
-
       <div className="cart-actions">
         <Link href="/" className="btn btn-secondary">
           Continue Shopping
         </Link>
-        <button
-          className="btn btn-primary"
-          onClick={handleCheckout}
-          disabled={checkingOut}
-        >
-          {checkingOut ? "Redirecting..." : "Checkout with Shopify"}
-        </button>
+        <Link href="/checkout" className="btn btn-primary">
+          Proceed to Checkout
+        </Link>
       </div>
     </div>
   );
