@@ -1,10 +1,22 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import Link from "next/link";
 import { useCart } from "@/context/CartContext";
 import { createCheckout } from "@/lib/shopify";
 import { formatPrice, PICKUP_TIMES, TAX_RATE } from "@/lib/orders";
+import { saveOrder, getUserProfile, addLoyaltyPoints } from "@/lib/storage";
+import { canUseNativePayments, requestNativePayment } from "@/lib/native/payments";
+import { impactFeedback, notificationFeedback } from "@/lib/native/haptics";
+import { schedulePickupReminder } from "@/lib/native/notifications";
+import {
+  startGeofenceMonitoring,
+  stopGeofenceMonitoring,
+  getDirectionsUrl,
+  getGoogleMapsUrl,
+} from "@/lib/native/geolocation";
+import { isIOS } from "@/lib/native/platform";
+import { v4 as uuidv4 } from "uuid";
 
 type PickupMethod = "in-store" | "curbside";
 
@@ -27,9 +39,37 @@ export default function CheckoutPage() {
   const [notes, setNotes] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState("");
+  const [nativePayAvailable, setNativePayAvailable] = useState(false);
+  const [geofenceActive, setGeofenceActive] = useState(false);
 
   const tax = subtotal * TAX_RATE;
   const total = subtotal + tax;
+
+  // Pre-fill from saved profile
+  useEffect(() => {
+    const profile = getUserProfile();
+    if (profile) {
+      setName(profile.name || "");
+      setEmail(profile.email || "");
+      setPhone(profile.phone || "");
+    }
+    setNativePayAvailable(canUseNativePayments());
+  }, []);
+
+  // Geofence monitoring for curbside
+  useEffect(() => {
+    if (pickupMethod === "curbside") {
+      startGeofenceMonitoring((entered) => {
+        setGeofenceActive(entered);
+      });
+    } else {
+      stopGeofenceMonitoring();
+      setGeofenceActive(false);
+    }
+    return () => {
+      stopGeofenceMonitoring();
+    };
+  }, [pickupMethod]);
 
   if (items.length === 0) {
     return (
@@ -43,6 +83,64 @@ export default function CheckoutPage() {
         </div>
       </div>
     );
+  }
+
+  async function saveOrderLocally(orderId: string) {
+    saveOrder({
+      id: orderId,
+      items: items.map((item) => ({
+        variantId: item.variantId,
+        productId: item.productId,
+        name: item.name,
+        variantTitle: item.variantTitle,
+        price: item.price,
+        quantity: item.quantity,
+        image: item.image,
+      })),
+      subtotal,
+      tax,
+      total,
+      pickupMethod,
+      pickupDate,
+      pickupTime,
+      customerName: name.trim(),
+      email: email.trim(),
+      phone: phone.trim(),
+      notes: notes.trim() || undefined,
+      status: "pending",
+      createdAt: new Date().toISOString(),
+    });
+
+    // Award loyalty points (1 point per dollar)
+    addLoyaltyPoints(Math.floor(total));
+
+    // Schedule pickup reminder
+    await schedulePickupReminder(orderId, 30);
+  }
+
+  async function handleNativePay() {
+    setError("");
+    setSubmitting(true);
+    await impactFeedback("MEDIUM");
+
+    const paymentItems = items.map((item) => ({
+      label: `${item.name} x${item.quantity}`,
+      amount: item.price * item.quantity,
+    }));
+    paymentItems.push({ label: "Tax (5.6%)", amount: tax });
+
+    const result = await requestNativePayment(paymentItems, total);
+
+    if (result.success) {
+      const orderId = uuidv4();
+      await saveOrderLocally(orderId);
+      await notificationFeedback();
+      clearCart();
+      window.location.href = `/confirmation?orderId=${orderId}&pickup=${pickupMethod}&date=${pickupDate}&time=${encodeURIComponent(pickupTime)}`;
+    } else {
+      setError(result.error || "Payment failed. Please try again.");
+      setSubmitting(false);
+    }
   }
 
   async function handleSubmit(e: React.FormEvent) {
@@ -63,6 +161,7 @@ export default function CheckoutPage() {
     }
 
     setSubmitting(true);
+    await impactFeedback("MEDIUM");
 
     try {
       const lineItems = items.map((item) => ({
@@ -90,7 +189,11 @@ export default function CheckoutPage() {
         customAttributes.push({ key: "Order Notes", value: notes.trim() });
       }
 
+      const orderId = uuidv4();
+      await saveOrderLocally(orderId);
+
       const { webUrl } = await createCheckout(lineItems, customAttributes);
+      await notificationFeedback();
       clearCart();
       window.location.href = webUrl;
     } catch {
@@ -210,6 +313,32 @@ export default function CheckoutPage() {
               </div>
             </label>
           </div>
+
+          {/* Geofence / Directions for curbside */}
+          {pickupMethod === "curbside" && (
+            <div className="curbside-info">
+              {geofenceActive ? (
+                <p className="pickup-note" style={{ color: "var(--color-green)" }}>
+                  You&apos;re near the shop! We&apos;ll notify you when your order is ready to bring out.
+                </p>
+              ) : (
+                <div className="directions-links">
+                  <a
+                    href={isIOS() ? getDirectionsUrl() : getGoogleMapsUrl()}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="btn btn-secondary"
+                    style={{ fontSize: "0.85rem", padding: "8px 16px" }}
+                  >
+                    Get Directions
+                  </a>
+                  <p className="pickup-note">
+                    Location tracking will auto-notify the shop when you arrive.
+                  </p>
+                </div>
+              )}
+            </div>
+          )}
         </div>
 
         {/* Pickup Date & Time */}
@@ -285,17 +414,33 @@ export default function CheckoutPage() {
           <p style={{ color: "var(--color-red)", marginBottom: 16 }}>{error}</p>
         )}
 
-        <div className="cart-actions">
+        <div className="cart-actions checkout-actions">
           <Link href="/cart" className="btn btn-secondary">
             Back to Cart
           </Link>
-          <button
-            type="submit"
-            className="btn btn-primary"
-            disabled={submitting}
-          >
-            {submitting ? "Processing..." : `Pay ${formatPrice(total)}`}
-          </button>
+
+          <div className="payment-buttons">
+            {/* Native Pay (Apple Pay / Google Pay) */}
+            {nativePayAvailable && (
+              <button
+                type="button"
+                className="btn btn-native-pay"
+                disabled={submitting}
+                onClick={handleNativePay}
+              >
+                Pay with Wallet
+              </button>
+            )}
+
+            {/* Standard Shopify Checkout */}
+            <button
+              type="submit"
+              className="btn btn-primary"
+              disabled={submitting}
+            >
+              {submitting ? "Processing..." : `Pay ${formatPrice(total)}`}
+            </button>
+          </div>
         </div>
       </form>
     </div>

@@ -4,6 +4,7 @@ import { useState } from "react";
 import { Product, categories } from "@/lib/products";
 import { useCart } from "@/context/CartContext";
 import { formatPrice } from "@/lib/orders";
+import { impactFeedback } from "@/lib/native/haptics";
 
 export default function FallbackMenu({ products }: { products: Product[] }) {
   const [activeCategory, setActiveCategory] = useState("all");
@@ -50,15 +51,16 @@ export default function FallbackMenu({ products }: { products: Product[] }) {
                 </span>
                 <button
                   className="btn btn-primary"
-                  onClick={() =>
+                  onClick={() => {
+                    impactFeedback("LIGHT");
                     addItem({
                       variantId: product.id,
                       productId: product.id,
                       name: product.name,
                       variantTitle: "Default Title",
                       price: product.price,
-                    })
-                  }
+                    });
+                  }}
                 >
                   Add to Cart
                 </button>

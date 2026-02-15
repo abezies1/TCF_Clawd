@@ -2,7 +2,17 @@
 
 import { useSearchParams } from "next/navigation";
 import Link from "next/link";
-import { Suspense } from "react";
+import { Suspense, useEffect, useState } from "react";
+import {
+  startGeofenceMonitoring,
+  stopGeofenceMonitoring,
+  getDirectionsUrl,
+  getGoogleMapsUrl,
+  formatDistance,
+  getCurrentPosition,
+  getDistanceToStore,
+} from "@/lib/native/geolocation";
+import { isIOS } from "@/lib/native/platform";
 
 function ConfirmationContent() {
   const searchParams = useSearchParams();
@@ -10,6 +20,32 @@ function ConfirmationContent() {
   const pickupMethod = searchParams.get("pickup");
   const pickupDate = searchParams.get("date");
   const pickupTime = searchParams.get("time");
+
+  const [distance, setDistance] = useState<string | null>(null);
+  const [nearStore, setNearStore] = useState(false);
+
+  useEffect(() => {
+    // Get initial distance to store
+    getCurrentPosition().then((coords) => {
+      if (coords) {
+        const dist = getDistanceToStore(coords);
+        setDistance(formatDistance(dist));
+      }
+    });
+
+    // Start geofence monitoring for curbside orders
+    if (pickupMethod === "curbside") {
+      startGeofenceMonitoring((entered, coords) => {
+        setNearStore(entered);
+        const dist = getDistanceToStore(coords);
+        setDistance(formatDistance(dist));
+      });
+    }
+
+    return () => {
+      stopGeofenceMonitoring();
+    };
+  }, [pickupMethod]);
 
   return (
     <div className="confirmation-page">
@@ -50,14 +86,40 @@ function ConfirmationContent() {
               <span style={{ fontWeight: 700 }}>{pickupTime}</span>
             </div>
           )}
+          {distance && (
+            <div className="detail-row">
+              <span>Distance to Store</span>
+              <span style={{ fontWeight: 700 }}>{distance}</span>
+            </div>
+          )}
         </div>
 
         {pickupMethod === "curbside" ? (
-          <p style={{ fontSize: "0.95rem", color: "#666", marginBottom: 32 }}>
-            When you arrive, park in a designated curbside spot and
-            we&apos;ll bring your order right out. You&apos;ll receive a
-            confirmation at your email.
-          </p>
+          <div className="confirmation-curbside">
+            {nearStore ? (
+              <p className="arrival-alert">
+                You&apos;re near the store! We&apos;re preparing your order for
+                curbside delivery.
+              </p>
+            ) : (
+              <>
+                <p style={{ fontSize: "0.95rem", color: "#666", marginBottom: 16 }}>
+                  When you arrive, park in a designated curbside spot and
+                  we&apos;ll bring your order right out. The app will
+                  automatically notify us when you&apos;re nearby.
+                </p>
+                <a
+                  href={isIOS() ? getDirectionsUrl() : getGoogleMapsUrl()}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="btn btn-secondary"
+                  style={{ marginBottom: 16 }}
+                >
+                  Get Directions
+                </a>
+              </>
+            )}
+          </div>
         ) : (
           <p style={{ fontSize: "0.95rem", color: "#666", marginBottom: 32 }}>
             You&apos;ll receive a confirmation at your email. Please bring
@@ -65,9 +127,14 @@ function ConfirmationContent() {
           </p>
         )}
 
-        <Link href="/" className="btn btn-primary">
-          Back to Menu
-        </Link>
+        <div className="confirmation-actions">
+          <Link href="/orders" className="btn btn-secondary">
+            View Orders
+          </Link>
+          <Link href="/" className="btn btn-primary">
+            Back to Menu
+          </Link>
+        </div>
       </div>
     </div>
   );

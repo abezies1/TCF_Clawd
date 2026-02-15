@@ -3,6 +3,7 @@
 import Image from "next/image";
 import { ShopifyProduct, formatShopifyPrice } from "@/lib/shopify";
 import { useCart } from "@/context/CartContext";
+import { impactFeedback } from "@/lib/native/haptics";
 
 export default function ProductCard({ product }: { product: ShopifyProduct }) {
   const { addItem } = useCart();
@@ -12,6 +13,18 @@ export default function ProductCard({ product }: { product: ShopifyProduct }) {
   const price = product.priceRange.minVariantPrice;
 
   if (!firstVariant) return null;
+
+  async function handleAddToCart() {
+    await impactFeedback("LIGHT");
+    addItem({
+      variantId: firstVariant.id,
+      productId: product.id,
+      name: product.title,
+      variantTitle: firstVariant.title,
+      price: parseFloat(firstVariant.price.amount),
+      image: firstImage?.url,
+    });
+  }
 
   return (
     <div className="product-card">
@@ -39,16 +52,7 @@ export default function ProductCard({ product }: { product: ShopifyProduct }) {
           <button
             className="btn btn-primary"
             disabled={!firstVariant.availableForSale}
-            onClick={() =>
-              addItem({
-                variantId: firstVariant.id,
-                productId: product.id,
-                name: product.title,
-                variantTitle: firstVariant.title,
-                price: parseFloat(firstVariant.price.amount),
-                image: firstImage?.url,
-              })
-            }
+            onClick={handleAddToCart}
           >
             {firstVariant.availableForSale ? "Add to Cart" : "Sold Out"}
           </button>
