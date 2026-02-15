@@ -157,6 +157,41 @@ export async function schedulePickupReminder(
   );
 }
 
+export async function notifyNewRelease(productName: string): Promise<void> {
+  await scheduleLocalNotification(
+    "New seasonal release just dropped!",
+    `${productName} is now available. Get it before it sells out!`
+  );
+}
+
+export async function notifySubscriptionShipping(): Promise<void> {
+  await scheduleLocalNotification(
+    "Your subscription box ships tomorrow!",
+    "Your monthly chocolate box is packed and ready to go."
+  );
+}
+
+export async function notifyFlashSale(details: string): Promise<void> {
+  await scheduleLocalNotification(
+    "Flash sale alert!",
+    details
+  );
+}
+
+export async function notifyBirthdayReward(name: string): Promise<void> {
+  await scheduleLocalNotification(
+    `Happy Birthday, ${name}!`,
+    "We have a special chocolate gift waiting for you. Check your rewards!"
+  );
+}
+
+export async function notifyLimitedBatch(productName: string, remaining: number): Promise<void> {
+  await scheduleLocalNotification(
+    "Limited batch alert",
+    `Only ${remaining} of ${productName} remaining. Don't miss out!`
+  );
+}
+
 // ─── Web Notification Fallback ──────────────────────────────────────────────
 
 async function requestWebNotificationPermission(): Promise<string | null> {

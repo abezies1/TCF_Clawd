@@ -77,6 +77,8 @@ export interface UserProfile {
   name: string;
   email: string;
   phone: string;
+  birthday?: string; // MM-DD format
+  anniversary?: string; // first purchase date
   biometricsEnabled: boolean;
   notificationsEnabled: boolean;
 }
