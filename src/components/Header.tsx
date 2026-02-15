@@ -14,6 +14,9 @@ export default function Header() {
         </Link>
         <nav className="header-nav">
           <Link href="/">Menu</Link>
+          <Link href="/orders">Orders</Link>
+          <Link href="/loyalty">Rewards</Link>
+          <Link href="/account">Account</Link>
           <Link href="/cart" className="cart-badge">
             Cart
             {totalItems > 0 && <span className="cart-count">{totalItems}</span>}
