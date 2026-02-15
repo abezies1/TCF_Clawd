@@ -10,10 +10,20 @@ export default async function MenuPage() {
     return <FallbackMenu products={fallbackProducts} />;
   }
 
-  const [products, collections] = await Promise.all([
-    getProducts(),
-    getCollections(),
-  ]);
+  try {
+    const [products, collections] = await Promise.all([
+      getProducts(),
+      getCollections(),
+    ]);
 
-  return <MenuContent products={products} collections={collections} />;
+    if (products.length === 0) {
+      console.warn("Shopify returned 0 products, falling back to local menu");
+      return <FallbackMenu products={fallbackProducts} />;
+    }
+
+    return <MenuContent products={products} collections={collections} />;
+  } catch (error) {
+    console.error("Failed to fetch from Shopify:", error);
+    return <FallbackMenu products={fallbackProducts} />;
+  }
 }
